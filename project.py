@@ -76,9 +76,9 @@ def _(df_species, species_names):
 
 
 @app.cell
-def _(df_species_numeric):
+def _(df_species):
     # converting the oridinal values to binary (presence or absence of species)
-    presence_absence = df_species_numeric > 0
+    presence_absence = df_species.iloc[:, 1:] > 0
     return (presence_absence,)
 
 
@@ -92,6 +92,12 @@ def _(presence_absence):
 def _(unique_plants_per_plot):
     df_diversity = unique_plants_per_plot.reset_index()
     return (df_diversity,)
+
+
+@app.cell
+def _(df_diversity):
+    df_diversity.columns = ["plot_number", "unique_plants"]
+    return
 
 
 @app.cell
