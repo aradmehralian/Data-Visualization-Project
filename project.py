@@ -22,18 +22,6 @@ def _(pd):
 
 
 @app.cell
-def _(df_env):
-    df_env.head()
-    return
-
-
-@app.cell
-def _(df_env):
-    df_env["cover_total"].min()
-    return
-
-
-@app.cell
 def _(df_env, np):
     df_env["cover_total"] = df_env["cover_total"].replace(-9999, np.nan)
     return
@@ -59,20 +47,8 @@ def _(pd):
 
 @app.cell
 def _(df_species_raw):
-    df_species_raw.head(n=10)
-    return
-
-
-@app.cell
-def _(df_species_raw):
     species_names = df_species_raw.iloc[3:, 0].values
     return (species_names,)
-
-
-@app.cell
-def _(species_names):
-    species_names
-    return
 
 
 @app.cell
@@ -82,21 +58,9 @@ def _(df_species_raw):
 
 
 @app.cell
-def _(plot_ids):
-    plot_ids
-    return
-
-
-@app.cell
 def _(df_species_raw, np):
     species_matrix = np.nan_to_num(df_species_raw.iloc[3:, 3:].values.astype(float))
     return (species_matrix,)
-
-
-@app.cell
-def _(species_matrix):
-    species_matrix
-    return
 
 
 @app.cell
@@ -106,34 +70,9 @@ def _(pd, plot_ids, species_matrix):
 
 
 @app.cell
-def _(df_species):
-    df_species
-    return
-
-
-@app.cell
 def _(df_species, species_names):
     df_species.insert(0, "species_name", species_names)
     return
-
-
-@app.cell
-def _(df_species):
-    df_species
-    return
-
-
-@app.cell
-def _(df_species):
-    df_species.iloc[:, 1:].apply(lambda x: sum(x != 0)).max()
-    return
-
-
-@app.cell
-def _(df_species):
-    df_species_numeric = df_species.set_index("species_name")
-    df_species_numeric
-    return (df_species_numeric,)
 
 
 @app.cell
@@ -151,27 +90,8 @@ def _(presence_absence):
 
 @app.cell
 def _(unique_plants_per_plot):
-    unique_plants_per_plot
-    return
-
-
-@app.cell
-def _(unique_plants_per_plot):
     df_diversity = unique_plants_per_plot.reset_index()
     return (df_diversity,)
-
-
-@app.cell
-def _(df_diversity):
-    df_diversity
-    return
-
-
-@app.cell
-def _(df_diversity):
-    df_diversity.columns = ["plot_number", "unique_plants"]
-    df_diversity
-    return
 
 
 @app.cell
@@ -184,12 +104,6 @@ def _(df_env):
 def _(df_diversity, df_env, pd):
     df_final = pd.merge(df_diversity, df_env, on="plot_number", how="left")
     return (df_final,)
-
-
-@app.cell
-def _(df_final):
-    df_final
-    return
 
 
 @app.cell
@@ -207,7 +121,6 @@ def _(df_final, np):
 @app.cell
 def _(df_diversity):
     MAX_DIVERSITY = df_diversity["unique_plants"].max()
-    print(MAX_DIVERSITY)
     return (MAX_DIVERSITY,)
 
 
@@ -231,24 +144,6 @@ def _(df_final):
 
 @app.cell
 def _(df_final):
-    df_final[["plot_number", "unique_plants", "cover_total", "concern_score"]].sort_values(by="concern_score", ascending=False)
-    return
-
-
-@app.cell
-def _(df_final):
-    df_final["cover_total"].min()
-    return
-
-
-@app.cell
-def _(df_final):
-    df_final["concern_score"].min()
-    return
-
-
-@app.cell
-def _(df_final):
     X = df_final["concern_score"].values.reshape(-1, 1)
     return (X,)
 
@@ -266,27 +161,14 @@ def _(X, df_final, kmeans):
 
 
 @app.cell
-def _(df_final):
-    df_final["raw_cluster"]
-    return
-
-
-@app.cell
 def _(kmeans):
     centers = kmeans.cluster_centers_.flatten()
     return (centers,)
 
 
 @app.cell
-def _(centers):
-    centers
-    return
-
-
-@app.cell
 def _(centers, np):
     sorted_indices = np.argsort(centers)
-    sorted_indices
     return (sorted_indices,)
 
 
@@ -303,18 +185,6 @@ def _(sorted_indices):
 @app.cell
 def _(color_mapping, df_final):
     df_final["concern_tier"] = df_final["raw_cluster"].map(color_mapping)
-    return
-
-
-@app.cell
-def _(df_final):
-    df_final.groupby('concern_tier')['concern_score'].agg(['min', 'max', 'count'])
-    return
-
-
-@app.cell
-def _(df_final):
-    df_final["disturbance_type"]
     return
 
 
@@ -337,7 +207,7 @@ def _(df_final, pd):
         lat, lon = row.get('latitude'), row.get('longitude')
         if pd.isna(lat) or pd.isna(lon) or lat == -9999 or lon == -9999:
             continue 
-        
+
         # Build the animal scores array using the clean columns
         animal_data = []
         for col in animal_cols:
@@ -385,7 +255,7 @@ def _(json, map_data, mo):
                 width: 100vw;
                 overflow: hidden; 
             }}
-        
+
             /* --- LEFT SIDEBAR --- */
             .sidebar {{
                 width: 280px;
@@ -400,7 +270,7 @@ def _(json, map_data, mo):
             }}
             .sidebar h2 {{ font-size: 18px; color: #222; margin-bottom: 8px; }}
             .sidebar p {{ font-size: 12px; color: #666; line-height: 1.4; }}
-        
+
             .radio-group {{ display: flex; flex-direction: column; gap: 12px; }}
             .radio-group label {{
                 cursor: pointer; font-size: 14px; font-weight: bold; color: #444; 
@@ -422,7 +292,7 @@ def _(json, map_data, mo):
                 background: #e9ecef;
                 overflow: hidden; 
             }}
-        
+
             .view-panel {{ position: absolute; top: 0; left: 0; right: 0; bottom: 0; }}
             #map-panel {{ display: block; }} 
             #puzzle-panel {{ 
@@ -430,9 +300,9 @@ def _(json, map_data, mo):
                 align-items: center; 
                 justify-content: center; 
             }}
-        
+
             #map-view {{ height: 100%; width: 100%; }}
-        
+
             /* Alaska Puzzle Grid */
             #alaska-grid {{
                 display: grid;
@@ -453,9 +323,9 @@ def _(json, map_data, mo):
             .marker-shape {{ border: 1px solid #222; box-shadow: 0 2px 4px rgba(0,0,0,0.4); opacity: 0.85; transition: transform 0.2s; }}
             .marker-shape:hover {{ transform: scale(1.4); opacity: 1; }}
             .leaflet-tooltip {{ padding: 0; border: none; box-shadow: none; background: transparent; }}
-        
+
             .shared-tooltip-content {{ padding: 10px; border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.25); background: white; color: #333; width: 180px; }}
-        
+
             #global-tooltip {{ position: fixed; pointer-events: none; display: none; z-index: 9999; }}
 
             .tooltip-header {{ border-bottom: 1px solid #ddd; padding-bottom: 5px; margin-bottom: 6px; text-align: center; }}
@@ -469,12 +339,12 @@ def _(json, map_data, mo):
         </style>
     </head>
     <body>
-    
+
         <div class="sidebar">
             <div>
                 <p>Hover over plots to view physical dimensions and local disturbance activity.</p>
             </div>
-        
+
             <div class="radio-group">
                 <label><input type="radio" name="viewToggle" value="map" checked> Satellite Map</label>
                 <label><input type="radio" name="viewToggle" value="puzzle"> Grid Layout</label>
@@ -499,7 +369,7 @@ def _(json, map_data, mo):
             <div id="puzzle-panel" class="view-panel">
                 <div id="alaska-grid"></div>
             </div>
-        
+
             <div id="global-tooltip"></div>
         </div>
 
@@ -551,7 +421,7 @@ def _(json, map_data, mo):
             plots.forEach(plot => {{
                 const baseSize = Math.sqrt(plot.releve_area) * 2.5;
                 let width = baseSize, height = baseSize, borderRadius = '50%';
-            
+
                 if (plot.releve_shape === 'square') borderRadius = '2px';
                 else if (plot.releve_shape === 'rectangular') {{ borderRadius = '2px'; width *= 1.4; height *= 0.7; }}
 
@@ -621,14 +491,14 @@ def _(json, map_data, mo):
             for (let r = 0; r < alaskaShape.length; r++) {{
                 for (let c = 0; c < alaskaShape[r].length; c++) {{
                     const cell = document.createElement('div');
-                
+
                     if (alaskaShape[r][c] === 1 && plotIndex < plots.length) {{
                         const plot = plots[plotIndex];
                         const bgColor = colorMap[plot.concern_tier] || '#aaaaaa';
-                    
+
                         cell.className = 'puzzle-piece';
                         cell.style.backgroundColor = bgColor;
-                    
+
                         cell.addEventListener('mouseenter', (e) => {{
                             domTooltip.innerHTML = getTooltipHTML(plot, bgColor);
                             domTooltip.style.display = 'block';
