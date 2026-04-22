@@ -22,6 +22,12 @@ def _(pd):
 
 
 @app.cell
+def _(df_env):
+    df_env.columns = df_env.columns.str.strip().str.lower()
+    return
+
+
+@app.cell
 def _(df_env, np):
     df_env["cover_total"] = df_env["cover_total"].replace(-9999, np.nan)
     return
@@ -40,129 +46,46 @@ def _(df_env, median_cover):
 
 
 @app.cell
-def _(pd):
-    df_species_raw = pd.read_csv("data/oumalik_species_data.csv", encoding="latin1", header=None)
-    return (df_species_raw,)
-
-
-@app.cell
-def _(df_species_raw):
-    species_names = df_species_raw.iloc[3:, 0].values
-    return (species_names,)
-
-
-@app.cell
-def _(df_species_raw):
-    plot_ids = df_species_raw.iloc[1, 3:].values.astype(float).astype(int)
-    return (plot_ids,)
-
-
-@app.cell
-def _(df_species_raw, np):
-    species_matrix = np.nan_to_num(df_species_raw.iloc[3:, 3:].values.astype(float))
-    return (species_matrix,)
-
-
-@app.cell
-def _(pd, plot_ids, species_matrix):
-    df_species = pd.DataFrame(species_matrix, columns=plot_ids.astype(str))
-    return (df_species,)
-
-
-@app.cell
-def _(df_species, species_names):
-    df_species.insert(0, "species_name", species_names)
-    return
-
-
-@app.cell
-def _(df_species):
-    # converting the oridinal values to binary (presence or absence of species)
-    presence_absence = df_species.iloc[:, 1:] > 0
-    return (presence_absence,)
-
-
-@app.cell
-def _(presence_absence):
-    unique_plants_per_plot = presence_absence.sum()
-    return (unique_plants_per_plot,)
-
-
-@app.cell
-def _(unique_plants_per_plot):
-    df_diversity = unique_plants_per_plot.reset_index()
-    return (df_diversity,)
-
-
-@app.cell
-def _(df_diversity):
-    df_diversity.columns = ["plot_number", "unique_plants"]
+def _(df_env, np):
+    # there are some values above 10 for the distrubance_score
+    # I'm clipping them to be between 1 and 10
+    df_env["disturbance_score"] = np.clip(df_env["disturbance_score"], min=1, max=10)
     return
 
 
 @app.cell
 def _(df_env):
-    df_env["plot_number"] = df_env["plot_number"].astype(str)
+    df_env["cover_penalty"] = 100 - df_env["cover_total"]
     return
 
 
 @app.cell
-def _(df_diversity, df_env, pd):
-    df_final = pd.merge(df_diversity, df_env, on="plot_number", how="left")
-    return (df_final,)
-
-
-@app.cell
-def _(df_final):
-    df_final.columns = df_final.columns.str.strip()
+def _(df_env):
+    df_env["disturbance_penalty"] = (df_env["disturbance_score"].astype(float)) * 10
     return
 
 
 @app.cell
-def _(df_final, np):
-    df_final["disturbance_score"] = np.clip(df_final["disturbance_score"], min=1, max=10)
+def _(df_env):
+    df_env["concern_score"] = (df_env["cover_penalty"] + df_env["disturbance_penalty"]) / 2
     return
 
 
 @app.cell
-def _(df_diversity):
-    MAX_DIVERSITY = df_diversity["unique_plants"].max()
-    return (MAX_DIVERSITY,)
-
-
-@app.cell
-def _(df_final):
-    df_final["cover_total"] = df_final["cover_total"] / 100
-    return
-
-
-@app.cell
-def _(MAX_DIVERSITY, df_final):
-    df_final["diversity_ratio"] = df_final["unique_plants"] / MAX_DIVERSITY
-    return
-
-
-@app.cell
-def _(df_final):
-    df_final["concern_score"] = 2 - (df_final["diversity_ratio"] + df_final["cover_total"])
-    return
-
-
-@app.cell
-def _(df_final):
-    X = df_final["concern_score"].values.reshape(-1, 1)
+def _(df_env):
+    X = df_env["concern_score"].values.reshape(-1, 1)
     return (X,)
 
 
 @app.cell
 def _(KMeans):
-    kmeans = KMeans(n_clusters=3, random_state=7)
+    kmeans = KMeans(n_clusters=3, random_state=10)
     return (kmeans,)
 
 
 @app.cell
-def _(X, df_final, kmeans):
-    df_final["raw_cluster"] = kmeans.fit_predict(X)
+def _(X, df_env, kmeans):
+    df_env["raw_cluster"] = kmeans.fit_predict(X)
     return
 
 
@@ -189,13 +112,13 @@ def _(sorted_indices):
 
 
 @app.cell
-def _(color_mapping, df_final):
-    df_final["concern_tier"] = df_final["raw_cluster"].map(color_mapping)
+def _(color_mapping, df_env):
+    df_env["concern_tier"] = df_env["raw_cluster"].map(color_mapping)
     return
 
 
 @app.cell
-def _(df_final, pd):
+def _():
     animal_cols = [
         'disturbance_caribou', 'disturbance_microtine', 'disturbance_squirrel', 
         'disturbance_ptarmigan', 'disturbance_birds', 'disturbance_insects'
@@ -206,19 +129,19 @@ def _(df_final, pd):
         'disturbance_squirrel': 'Squirrels', 'disturbance_ptarmigan': 'Ptarmigan',
         'disturbance_birds': 'Other Birds', 'disturbance_insects': 'Insects'
     }
+    return animal_cols, label_map
 
+
+@app.cell
+def _(animal_cols, df_env, label_map, pd):
     map_data = []
 
-    for index, row in df_final.iterrows():
-        lat, lon = row.get('latitude'), row.get('longitude')
-        if pd.isna(lat) or pd.isna(lon) or lat == -9999 or lon == -9999:
-            continue 
-
-        # Build the animal scores array using the clean columns
+    for i, row in df_env.iterrows():
+    
         animal_data = []
         for col in animal_cols:
             val = row.get(col, 0)
-            if pd.notna(val) and val > 0 and val != -9999:
+            if pd.notna(val) and val > 0:
                 animal_data.append({
                     "animal": label_map[col],
                     "score": int(val)
@@ -226,13 +149,14 @@ def _(df_final, pd):
         animal_data = sorted(animal_data, key=lambda x: x['score'], reverse=True)
 
         map_data.append({
-            "plot_id": str(row.get('plot_number', index)),
-            "latitude": float(lat),
-            "longitude": float(lon),
+            "plot_id": str(row.get('plot_number', i)),
+            "latitude": float(row['latitude']),
+            "longitude": float(row['longitude']),
             "releve_area": float(row.get('releve_area', 25)),
             "releve_shape": str(row.get('releve_shape', 'irregular')).strip().lower(),
-            "concern_tier": str(row.get('concern_tier', 'green')),
-            "overall_dist_score": int(row.get('disturbance_score', 0)),     
+            "concern_tier": str(row.get('concern_tier', 'green')).strip().lower(),
+            "overall_dist_score": int(row.get('disturbance_score', 0)), 
+            "dist_type_code": int(row.get('dist_type_code', 0)),    
             "animals": animal_data 
         })
     return (map_data,)
@@ -261,7 +185,7 @@ def _(json, map_data, mo):
                 width: 100vw;
                 overflow: hidden; 
             }}
-
+        
             /* --- LEFT SIDEBAR --- */
             .sidebar {{
                 width: 280px;
@@ -276,7 +200,7 @@ def _(json, map_data, mo):
             }}
             .sidebar h2 {{ font-size: 18px; color: #222; margin-bottom: 8px; }}
             .sidebar p {{ font-size: 12px; color: #666; line-height: 1.4; }}
-
+        
             .radio-group {{ display: flex; flex-direction: column; gap: 12px; }}
             .radio-group label {{
                 cursor: pointer; font-size: 14px; font-weight: bold; color: #444; 
@@ -298,7 +222,7 @@ def _(json, map_data, mo):
                 background: #e9ecef;
                 overflow: hidden; 
             }}
-
+        
             .view-panel {{ position: absolute; top: 0; left: 0; right: 0; bottom: 0; }}
             #map-panel {{ display: block; }} 
             #puzzle-panel {{ 
@@ -306,22 +230,23 @@ def _(json, map_data, mo):
                 align-items: center; 
                 justify-content: center; 
             }}
-
+        
             #map-view {{ height: 100%; width: 100%; }}
-
+        
             /* Alaska Puzzle Grid */
             #alaska-grid {{
                 display: grid;
                 grid-template-columns: repeat(12, 1fr);
-                gap: 4px;
+                gap: 6px; 
                 width: 100%;
-                max-width: 550px; 
+                max-width: 600px; 
+                margin: 0 auto;
             }}
             .puzzle-piece {{
                 aspect-ratio: 1; border-radius: 3px; border: 1px solid rgba(0,0,0,0.1);
                 transition: transform 0.2s, box-shadow 0.2s; cursor: crosshair;
             }}
-            .puzzle-piece:hover {{ transform: scale(1.2); box-shadow: 0 4px 8px rgba(0,0,0,0.3); z-index: 10; }}
+            .puzzle-piece:hover {{ transform: scale(1.15); box-shadow: 0 4px 8px rgba(0,0,0,0.3); z-index: 10; }}
             .empty-slot {{ background: transparent; pointer-events: none; }}
 
             /* Tooltip CSS */
@@ -329,9 +254,9 @@ def _(json, map_data, mo):
             .marker-shape {{ border: 1px solid #222; box-shadow: 0 2px 4px rgba(0,0,0,0.4); opacity: 0.85; transition: transform 0.2s; }}
             .marker-shape:hover {{ transform: scale(1.4); opacity: 1; }}
             .leaflet-tooltip {{ padding: 0; border: none; box-shadow: none; background: transparent; }}
-
+        
             .shared-tooltip-content {{ padding: 10px; border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.25); background: white; color: #333; width: 180px; }}
-
+        
             #global-tooltip {{ position: fixed; pointer-events: none; display: none; z-index: 9999; }}
 
             .tooltip-header {{ border-bottom: 1px solid #ddd; padding-bottom: 5px; margin-bottom: 6px; text-align: center; }}
@@ -345,12 +270,12 @@ def _(json, map_data, mo):
         </style>
     </head>
     <body>
-
+    
         <div class="sidebar">
             <div>
                 <p>Hover over plots to view physical dimensions and local disturbance activity.</p>
             </div>
-
+        
             <div class="radio-group">
                 <label><input type="radio" name="viewToggle" value="map" checked> Satellite Map</label>
                 <label><input type="radio" name="viewToggle" value="puzzle"> Grid Layout</label>
@@ -375,7 +300,7 @@ def _(json, map_data, mo):
             <div id="puzzle-panel" class="view-panel">
                 <div id="alaska-grid"></div>
             </div>
-
+        
             <div id="global-tooltip"></div>
         </div>
 
@@ -427,7 +352,7 @@ def _(json, map_data, mo):
             plots.forEach(plot => {{
                 const baseSize = Math.sqrt(plot.releve_area) * 2.5;
                 let width = baseSize, height = baseSize, borderRadius = '50%';
-
+            
                 if (plot.releve_shape === 'square') borderRadius = '2px';
                 else if (plot.releve_shape === 'rectangular') {{ borderRadius = '2px'; width *= 1.4; height *= 0.7; }}
 
@@ -460,32 +385,28 @@ def _(json, map_data, mo):
             const domTooltip = document.getElementById('global-tooltip');
             let plotIndex = 0;
 
-            // FIXED: Strongly defaults to the right with increased padding
             function updateTooltipPosition(e) {{
                 if (domTooltip.style.display === 'none') return;
 
                 const tooltipWidth = domTooltip.offsetWidth;
                 const tooltipHeight = domTooltip.offsetHeight;
-                const padding = 25; // INCREASED: distance from cursor
-                const margin = 10;  // Minimum distance from window edges
+                const padding = 25; 
+                const margin = 10;  
 
                 const cx = e.clientX;
                 const cy = e.clientY;
                 const vw = window.innerWidth;
                 const vh = window.innerHeight;
 
-                // Default: Place to the RIGHT of the cursor, centered vertically
                 let left = cx + padding;
                 let top = cy - (tooltipHeight / 2);
 
-                // Vertical boundaries: if too close to top or bottom, slide along the margins
                 if (top < margin) {{
                     top = margin;
                 }} else if (top + tooltipHeight > vh - margin) {{
                     top = vh - tooltipHeight - margin;
                 }}
 
-                // Horizontal boundaries: if it hits the right edge, flip it completely to the LEFT side
                 if (left + tooltipWidth > vw - margin) {{
                     left = cx - tooltipWidth - padding;
                 }}
@@ -497,14 +418,14 @@ def _(json, map_data, mo):
             for (let r = 0; r < alaskaShape.length; r++) {{
                 for (let c = 0; c < alaskaShape[r].length; c++) {{
                     const cell = document.createElement('div');
-
+                
                     if (alaskaShape[r][c] === 1 && plotIndex < plots.length) {{
                         const plot = plots[plotIndex];
                         const bgColor = colorMap[plot.concern_tier] || '#aaaaaa';
-
+                    
                         cell.className = 'puzzle-piece';
                         cell.style.backgroundColor = bgColor;
-
+                    
                         cell.addEventListener('mouseenter', (e) => {{
                             domTooltip.innerHTML = getTooltipHTML(plot, bgColor);
                             domTooltip.style.display = 'block';
