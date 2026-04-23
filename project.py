@@ -17,18 +17,21 @@ def _():
 
 @app.cell
 def _(pd):
+    # for this visualization I only need the environmental data set
     df_env = pd.read_csv("data/oumalik_environmental_data.csv", parse_dates=["date"])
     return (df_env,)
 
 
 @app.cell
 def _(df_env):
+    # there were some inconsistencies in the naming of some of the columns
     df_env.columns = df_env.columns.str.strip().str.lower()
     return
 
 
 @app.cell
 def _(df_env, np):
+    # in the project description file it was mentioned that the missing values are encoded as -9999
     df_env["cover_total"] = df_env["cover_total"].replace(-9999, np.nan)
     return
 
@@ -48,13 +51,14 @@ def _(df_env, median_cover):
 @app.cell
 def _(df_env, np):
     # there are some values above 10 for the distrubance_score
-    # I'm clipping them to be between 1 and 10
+    # clipping them to be between 1 and 10
     df_env["disturbance_score"] = np.clip(df_env["disturbance_score"], min=1, max=10)
     return
 
 
 @app.cell
 def _(df_env):
+     # the mover plant cover, the better; so flip it for the penalty
     df_env["cover_penalty"] = 100 - df_env["cover_total"]
     return
 
@@ -133,25 +137,41 @@ def _():
 
 
 @app.cell
-def _(animal_cols, df_env, label_map, pd):
+def _(animal_cols, df_env, label_map, np, pd):
+    cols_per_row = 10
+
+    # sorting plots from north to south (latitude)
+    df_grid = df_env.copy()
+    df_grid = df_grid.sort_values(by='latitude', ascending=False).reset_index(drop=True)
+
+    # putting them in rows
+    df_grid['grid_row_temp'] = df_grid.index // cols_per_row
+
+    # sorting west to east (longitude) inside each row
+    df_grid = df_grid.groupby('grid_row_temp', group_keys=False).apply(lambda x: x.sort_values(by='longitude', ascending=True))
+
+    # assign final 1-indexed CSS grid coordinates
+    df_grid['grid_row'] = (np.arange(len(df_grid)) // cols_per_row) + 1
+    df_grid['grid_col'] = (np.arange(len(df_grid)) % cols_per_row) + 1
+
+
     map_data = []
 
-    for i, row in df_env.iterrows():
+    for i, row in df_grid.iterrows():
     
         animal_data = []
         for col in animal_cols:
             val = row.get(col, 0)
             if pd.notna(val) and val > 0:
-                animal_data.append({
-                    "animal": label_map[col],
-                    "score": int(val)
-                })
+                animal_data.append({"animal": label_map[col], "score": int(val)})
         animal_data = sorted(animal_data, key=lambda x: x['score'], reverse=True)
 
         map_data.append({
             "plot_id": str(row.get('plot_number', i)),
             "latitude": float(row['latitude']),
             "longitude": float(row['longitude']),
+            "grid_row": int(row['grid_row']),
+            "grid_col": int(row['grid_col']),
             "releve_area": float(row.get('releve_area', 25)),
             "releve_shape": str(row.get('releve_shape', 'irregular')).strip().lower(),
             "concern_tier": str(row.get('concern_tier', 'green')).strip().lower(),
@@ -186,17 +206,10 @@ def _(json, map_data, mo):
                 overflow: hidden; 
             }}
         
-            /* --- LEFT SIDEBAR --- */
             .sidebar {{
-                width: 280px;
-                background: white;
-                border-right: 1px solid #ccc;
-                padding: 20px;
-                display: flex;
-                flex-direction: column;
-                gap: 24px;
-                z-index: 10;
-                box-shadow: 2px 0 8px rgba(0,0,0,0.05);
+                width: 280px; background: white; border-right: 1px solid #ccc;
+                padding: 20px; display: flex; flex-direction: column; gap: 24px;
+                z-index: 10; box-shadow: 2px 0 8px rgba(0,0,0,0.05);
             }}
             .sidebar h2 {{ font-size: 18px; color: #222; margin-bottom: 8px; }}
             .sidebar p {{ font-size: 12px; color: #666; line-height: 1.4; }}
@@ -215,48 +228,36 @@ def _(json, map_data, mo):
             .legend-item {{ display: flex; align-items: center; margin-bottom: 8px; }}
             .legend-color {{ width: 16px; height: 16px; margin-right: 10px; border-radius: 3px; border: 1px solid rgba(0,0,0,0.3); }}
 
-            /* --- RIGHT MAIN CONTENT --- */
-            .main-content {{
-                flex-grow: 1;
-                position: relative;
-                background: #e9ecef;
-                overflow: hidden; 
-            }}
+            .main-content {{ flex-grow: 1; position: relative; background: #e9ecef; overflow: hidden; }}
         
             .view-panel {{ position: absolute; top: 0; left: 0; right: 0; bottom: 0; }}
             #map-panel {{ display: block; }} 
-            #puzzle-panel {{ 
-                display: none; 
-                align-items: center; 
-                justify-content: center; 
-            }}
-        
+            #puzzle-panel {{ display: none; align-items: center; justify-content: center; }}
             #map-view {{ height: 100%; width: 100%; }}
+
         
-            /* Alaska Puzzle Grid */
             #alaska-grid {{
                 display: grid;
-                grid-template-columns: repeat(12, 1fr);
+                grid-template-columns: repeat(10, 1fr); 
+                grid-template-rows: repeat(9, 1fr);    
                 gap: 6px; 
                 width: 100%;
                 max-width: 600px; 
                 margin: 0 auto;
             }}
+        
             .puzzle-piece {{
                 aspect-ratio: 1; border-radius: 3px; border: 1px solid rgba(0,0,0,0.1);
                 transition: transform 0.2s, box-shadow 0.2s; cursor: crosshair;
             }}
             .puzzle-piece:hover {{ transform: scale(1.15); box-shadow: 0 4px 8px rgba(0,0,0,0.3); z-index: 10; }}
-            .empty-slot {{ background: transparent; pointer-events: none; }}
 
-            /* Tooltip CSS */
             .custom-plot-marker {{ background: transparent; border: none; }}
             .marker-shape {{ border: 1px solid #222; box-shadow: 0 2px 4px rgba(0,0,0,0.4); opacity: 0.85; transition: transform 0.2s; }}
             .marker-shape:hover {{ transform: scale(1.4); opacity: 1; }}
             .leaflet-tooltip {{ padding: 0; border: none; box-shadow: none; background: transparent; }}
         
             .shared-tooltip-content {{ padding: 10px; border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.25); background: white; color: #333; width: 180px; }}
-        
             #global-tooltip {{ position: fixed; pointer-events: none; display: none; z-index: 9999; }}
 
             .tooltip-header {{ border-bottom: 1px solid #ddd; padding-bottom: 5px; margin-bottom: 6px; text-align: center; }}
@@ -273,6 +274,7 @@ def _(json, map_data, mo):
     
         <div class="sidebar">
             <div>
+                <h2>Disturbance Map</h2>
                 <p>Hover over plots to view physical dimensions and local disturbance activity.</p>
             </div>
         
@@ -286,7 +288,8 @@ def _(json, map_data, mo):
                 <div class="legend-item"><div class="legend-color" style="background: #f44336;"></div>High (Red)</div>
                 <div class="legend-item"><div class="legend-color" style="background: #ff9800;"></div>Medium (Yellow)</div>
                 <div class="legend-item"><div class="legend-color" style="background: #4caf50;"></div>Low (Green)</div>
-                <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #ddd; color: #777;">
+            
+                <div id="shape-scale-legend" style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #ddd; color: #777; display: block;">
                     <strong>Size</strong>: Scaled by Area<br>
                     <strong>Shape</strong>: Square, Rectangle, Irregular
                 </div>
@@ -313,7 +316,6 @@ def _(json, map_data, mo):
                 'green': '#4caf50'
             }};
 
-            // --- SHARED TOOLTIP GENERATOR ---
             function getTooltipHTML(plot, bgColor) {{
                 let lowerContentHTML = "";
                 if (plot.dist_type_code === 3) {{
@@ -345,45 +347,12 @@ def _(json, map_data, mo):
                 `;
             }}
 
-            // --- INITIALIZE LEAFLET MAP ---
+
             const map = L.map('map-view').setView([69.845, -155.985], 14);
             L.tileLayer('{tile_url}', {{ attribution: 'Tiles &copy; Esri' }}).addTo(map);
 
-            plots.forEach(plot => {{
-                const baseSize = Math.sqrt(plot.releve_area) * 2.5;
-                let width = baseSize, height = baseSize, borderRadius = '50%';
-            
-                if (plot.releve_shape === 'square') borderRadius = '2px';
-                else if (plot.releve_shape === 'rectangular') {{ borderRadius = '2px'; width *= 1.4; height *= 0.7; }}
 
-                const bgColor = colorMap[plot.concern_tier] || '#aaaaaa';
-                const markerHtml = `<div class="marker-shape" style="width: ${{width}}px; height: ${{height}}px; background: ${{bgColor}}; border-radius: ${{borderRadius}};"></div>`;
-
-                const icon = L.divIcon({{ className: 'custom-plot-marker', html: markerHtml, iconSize: [width, height], iconAnchor: [width/2, height/2] }});
-
-                L.marker([plot.latitude, plot.longitude], {{ icon: icon }})
-                    .addTo(map)
-                    .bindTooltip(getTooltipHTML(plot, bgColor), {{ direction: 'top', offset: [0, -(height/2)], opacity: 1 }});
-            }});
-
-
-            // --- INITIALIZE PUZZLE VIEW & SMART HOVER ---
-            const alaskaShape = [
-                [0,0,1,1,1,1,1,1,1,1,0,0],
-                [0,1,1,1,1,1,1,1,1,1,0,0],
-                [1,1,1,1,1,1,1,1,1,1,1,0],
-                [1,1,1,1,1,1,1,1,1,1,1,0],
-                [1,1,1,1,1,1,1,1,1,1,0,0],
-                [1,1,1,1,1,1,1,1,1,0,0,0],
-                [0,1,1,1,1,1,1,1,0,0,0,0],
-                [0,1,1,1,0,0,1,1,0,0,1,1],
-                [1,1,1,1,0,0,0,0,1,1,1,1],
-                [1,1,1,1,1,0,0,0,0,1,1,1] 
-            ];
-
-            const gridContainer = document.getElementById('alaska-grid');
             const domTooltip = document.getElementById('global-tooltip');
-            let plotIndex = 0;
 
             function updateTooltipPosition(e) {{
                 if (domTooltip.style.display === 'none') return;
@@ -401,63 +370,71 @@ def _(json, map_data, mo):
                 let left = cx + padding;
                 let top = cy - (tooltipHeight / 2);
 
-                if (top < margin) {{
-                    top = margin;
-                }} else if (top + tooltipHeight > vh - margin) {{
-                    top = vh - tooltipHeight - margin;
-                }}
+                if (top < margin) top = margin;
+                else if (top + tooltipHeight > vh - margin) top = vh - tooltipHeight - margin;
 
-                if (left + tooltipWidth > vw - margin) {{
-                    left = cx - tooltipWidth - padding;
-                }}
+                if (left + tooltipWidth > vw - margin) left = cx - tooltipWidth - padding;
 
                 domTooltip.style.left = left + 'px';
                 domTooltip.style.top  = top  + 'px';
             }}
 
-            for (let r = 0; r < alaskaShape.length; r++) {{
-                for (let c = 0; c < alaskaShape[r].length; c++) {{
-                    const cell = document.createElement('div');
-                
-                    if (alaskaShape[r][c] === 1 && plotIndex < plots.length) {{
-                        const plot = plots[plotIndex];
-                        const bgColor = colorMap[plot.concern_tier] || '#aaaaaa';
-                    
-                        cell.className = 'puzzle-piece';
-                        cell.style.backgroundColor = bgColor;
-                    
-                        cell.addEventListener('mouseenter', (e) => {{
-                            domTooltip.innerHTML = getTooltipHTML(plot, bgColor);
-                            domTooltip.style.display = 'block';
-                            updateTooltipPosition(e);
-                        }});
-                        cell.addEventListener('mousemove', updateTooltipPosition);
-                        cell.addEventListener('mouseleave', () => {{
-                            domTooltip.style.display = 'none';
-                        }});
 
-                        plotIndex++;
-                    }} else {{
-                        cell.className = 'empty-slot';
-                    }}
-                    gridContainer.appendChild(cell);
-                }}
-            }}
+            const gridContainer = document.getElementById('alaska-grid');
 
-            // --- TOGGLE LOGIC ---
+            plots.forEach(plot => {{
+                const bgColor = colorMap[plot.concern_tier] || '#aaaaaa';
+
+
+                const baseSize = Math.sqrt(plot.releve_area) * 2.5;
+                let width = baseSize, height = baseSize, borderRadius = '50%';
+                if (plot.releve_shape === 'square') borderRadius = '2px';
+                else if (plot.releve_shape === 'rectangular') {{ borderRadius = '2px'; width *= 1.4; height *= 0.7; }}
+
+                const markerHtml = `<div class="marker-shape" style="width: ${{width}}px; height: ${{height}}px; background: ${{bgColor}}; border-radius: ${{borderRadius}};"></div>`;
+                const icon = L.divIcon({{ className: 'custom-plot-marker', html: markerHtml, iconSize: [width, height], iconAnchor: [width/2, height/2] }});
+
+                L.marker([plot.latitude, plot.longitude], {{ icon: icon }})
+                    .addTo(map)
+                    .bindTooltip(getTooltipHTML(plot, bgColor), {{ direction: 'top', offset: [0, -(height/2)], opacity: 1 }});
+
+
+                const cell = document.createElement('div');
+                cell.className = 'puzzle-piece';
+                cell.style.backgroundColor = bgColor;
+            
+
+                cell.style.gridRow = plot.grid_row;
+                cell.style.gridColumn = plot.grid_col;
+
+                cell.addEventListener('mouseenter', (e) => {{
+                    domTooltip.innerHTML = getTooltipHTML(plot, bgColor);
+                    domTooltip.style.display = 'block';
+                    updateTooltipPosition(e);
+                }});
+                cell.addEventListener('mousemove', updateTooltipPosition);
+                cell.addEventListener('mouseleave', () => domTooltip.style.display = 'none');
+
+                gridContainer.appendChild(cell);
+            }});
+
+
             const mapPanel = document.getElementById('map-panel');
             const puzzlePanel = document.getElementById('puzzle-panel');
             const radios = document.querySelectorAll('input[name="viewToggle"]');
+            const shapeScaleLegend = document.getElementById('shape-scale-legend'); // NEW: Get the legend element
 
             radios.forEach(radio => {{
                 radio.addEventListener('change', (e) => {{
                     if (e.target.value === 'map') {{
                         puzzlePanel.style.display = 'none';
                         mapPanel.style.display = 'block';
+                        shapeScaleLegend.style.display = 'block'; // NEW: Show shape legend
                         setTimeout(() => map.invalidateSize(), 10); 
                     }} else {{
                         mapPanel.style.display = 'none';
                         puzzlePanel.style.display = 'flex'; 
+                        shapeScaleLegend.style.display = 'none'; // NEW: Hide shape legend
                     }}
                 }});
             }});
