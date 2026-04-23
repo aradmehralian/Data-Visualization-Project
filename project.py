@@ -58,7 +58,7 @@ def _(df_env, np):
 
 @app.cell
 def _(df_env):
-     # the mover plant cover, the better; so flip it for the penalty
+    # the mover plant cover, the better; so flip it for the penalty
     df_env["cover_penalty"] = 100 - df_env["cover_total"]
     return
 
@@ -158,7 +158,7 @@ def _(animal_cols, df_env, label_map, np, pd):
     map_data = []
 
     for i, row in df_grid.iterrows():
-    
+
         animal_data = []
         for col in animal_cols:
             val = row.get(col, 0)
@@ -205,7 +205,7 @@ def _(json, map_data, mo):
                 width: 100vw;
                 overflow: hidden; 
             }}
-        
+
             .sidebar {{
                 width: 280px; background: white; border-right: 1px solid #ccc;
                 padding: 20px; display: flex; flex-direction: column; gap: 24px;
@@ -213,7 +213,7 @@ def _(json, map_data, mo):
             }}
             .sidebar h2 {{ font-size: 18px; color: #222; margin-bottom: 8px; }}
             .sidebar p {{ font-size: 12px; color: #666; line-height: 1.4; }}
-        
+
             .radio-group {{ display: flex; flex-direction: column; gap: 12px; }}
             .radio-group label {{
                 cursor: pointer; font-size: 14px; font-weight: bold; color: #444; 
@@ -229,13 +229,13 @@ def _(json, map_data, mo):
             .legend-color {{ width: 16px; height: 16px; margin-right: 10px; border-radius: 3px; border: 1px solid rgba(0,0,0,0.3); }}
 
             .main-content {{ flex-grow: 1; position: relative; background: #e9ecef; overflow: hidden; }}
-        
+
             .view-panel {{ position: absolute; top: 0; left: 0; right: 0; bottom: 0; }}
             #map-panel {{ display: block; }} 
             #puzzle-panel {{ display: none; align-items: center; justify-content: center; }}
             #map-view {{ height: 100%; width: 100%; }}
 
-        
+
             #alaska-grid {{
                 display: grid;
                 grid-template-columns: repeat(10, 1fr); 
@@ -245,7 +245,7 @@ def _(json, map_data, mo):
                 max-width: 600px; 
                 margin: 0 auto;
             }}
-        
+
             .puzzle-piece {{
                 aspect-ratio: 1; border-radius: 3px; border: 1px solid rgba(0,0,0,0.1);
                 transition: transform 0.2s, box-shadow 0.2s; cursor: crosshair;
@@ -256,7 +256,7 @@ def _(json, map_data, mo):
             .marker-shape {{ border: 1px solid #222; box-shadow: 0 2px 4px rgba(0,0,0,0.4); opacity: 0.85; transition: transform 0.2s; }}
             .marker-shape:hover {{ transform: scale(1.4); opacity: 1; }}
             .leaflet-tooltip {{ padding: 0; border: none; box-shadow: none; background: transparent; }}
-        
+
             .shared-tooltip-content {{ padding: 10px; border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.25); background: white; color: #333; width: 180px; }}
             #global-tooltip {{ position: fixed; pointer-events: none; display: none; z-index: 9999; }}
 
@@ -271,13 +271,13 @@ def _(json, map_data, mo):
         </style>
     </head>
     <body>
-    
+
         <div class="sidebar">
             <div>
                 <h2>Disturbance Map</h2>
                 <p>Hover over plots to view physical dimensions and local disturbance activity.</p>
             </div>
-        
+
             <div class="radio-group">
                 <label><input type="radio" name="viewToggle" value="map" checked> Satellite Map</label>
                 <label><input type="radio" name="viewToggle" value="puzzle"> Grid Layout</label>
@@ -288,7 +288,7 @@ def _(json, map_data, mo):
                 <div class="legend-item"><div class="legend-color" style="background: #f44336;"></div>High (Red)</div>
                 <div class="legend-item"><div class="legend-color" style="background: #ff9800;"></div>Medium (Yellow)</div>
                 <div class="legend-item"><div class="legend-color" style="background: #4caf50;"></div>Low (Green)</div>
-            
+
                 <div id="shape-scale-legend" style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #ddd; color: #777; display: block;">
                     <strong>Size</strong>: Scaled by Area<br>
                     <strong>Shape</strong>: Square, Rectangle, Irregular
@@ -303,7 +303,7 @@ def _(json, map_data, mo):
             <div id="puzzle-panel" class="view-panel">
                 <div id="alaska-grid"></div>
             </div>
-        
+
             <div id="global-tooltip"></div>
         </div>
 
@@ -402,7 +402,7 @@ def _(json, map_data, mo):
                 const cell = document.createElement('div');
                 cell.className = 'puzzle-piece';
                 cell.style.backgroundColor = bgColor;
-            
+
 
                 cell.style.gridRow = plot.grid_row;
                 cell.style.gridColumn = plot.grid_col;
