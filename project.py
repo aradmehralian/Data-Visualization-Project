@@ -176,7 +176,7 @@ def _(animal_cols, df_env, label_map, np, pd):
             "releve_shape": str(row.get('releve_shape', 'irregular')).strip().lower(),
             "concern_tier": str(row.get('concern_tier', 'green')).strip().lower(),
             "overall_dist_score": int(row.get('disturbance_score', 0)), 
-            "dist_type_code": int(row.get('dist_type_code', 0)),    
+            "dist_type_code": int(row.get('disturbance_type', 0)),    
             "animals": animal_data 
         })
     return (map_data,)
@@ -185,6 +185,7 @@ def _(animal_cols, df_env, label_map, np, pd):
 @app.cell
 def _(json, map_data, mo):
     map_data_json = json.dumps(map_data)
+
 
     tile_url = "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
 
@@ -257,7 +258,7 @@ def _(json, map_data, mo):
             .marker-shape:hover {{ transform: scale(1.4); opacity: 1; }}
             .leaflet-tooltip {{ padding: 0; border: none; box-shadow: none; background: transparent; }}
 
-            .shared-tooltip-content {{ padding: 10px; border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.25); background: white; color: #333; width: 180px; }}
+            .shared-tooltip-content {{ padding: 10px; border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.25); background: white; color: #333; min-width: 180px; max-width: 250px; word-wrap: break-word; }}
             #global-tooltip {{ position: fixed; pointer-events: none; display: none; z-index: 9999; }}
 
             .tooltip-header {{ border-bottom: 1px solid #ddd; padding-bottom: 5px; margin-bottom: 6px; text-align: center; }}
@@ -267,7 +268,6 @@ def _(json, map_data, mo):
             .bar-track {{ flex-grow: 1; height: 8px; background: #eee; border-radius: 4px; margin: 0 6px; width: 60px; }}
             .bar-fill {{ height: 100%; background: #607d8b; border-radius: 4px; }}
             .bar-value {{ width: 15px; text-align: right; font-weight: bold; }}
-            .human-warning {{ font-size: 11px; text-align: center; padding-top: 4px; color: #d32f2f; font-weight: bold; }}
         </style>
     </head>
     <body>
@@ -317,40 +317,47 @@ def _(json, map_data, mo):
             }};
 
             function getTooltipHTML(plot, bgColor) {{
+            
+                // 1. Determine Disturbance Type explicitly
+                let distTypeStr = "Unknown";
+                if (plot.dist_type_code === 1) distTypeStr = "Undisturbed";
+                else if (plot.dist_type_code === 2) distTypeStr = "Naturally Disturbed";
+                else if (plot.dist_type_code === 3) distTypeStr = "Anthropogenically Disturbed";
+
+                // 2. Build the Animal Bar Charts
                 let lowerContentHTML = "";
-                if (plot.dist_type_code === 3) {{
-                    lowerContentHTML = `<div class="human-warning">Primary Impact: Anthropogenic</div>`;
+                if (plot.animals && plot.animals.length > 0) {{
+                    lowerContentHTML = plot.animals.map(a => `
+                        <div class="bar-row">
+                            <div class="bar-label">${{a.animal}}</div>
+                            <div class="bar-track"><div class="bar-fill" style="width: ${{a.score * 10}}%"></div></div>
+                            <div class="bar-value">${{a.score}}</div>
+                        </div>
+                    `).join('');
                 }} else {{
-                    if (plot.animals && plot.animals.length > 0) {{
-                        lowerContentHTML = plot.animals.map(a => `
-                            <div class="bar-row">
-                                <div class="bar-label">${{a.animal}}</div>
-                                <div class="bar-track"><div class="bar-fill" style="width: ${{a.score * 10}}%"></div></div>
-                                <div class="bar-value">${{a.score}}</div>
-                            </div>
-                        `).join('');
-                    }} else {{
-                        lowerContentHTML = "<div style='font-size:11px; text-align:center; padding-top:4px; color:#777;'>No animal activity recorded</div>";
-                    }}
+                    lowerContentHTML = "<div style='font-size:11px; text-align:center; padding-top:4px; color:#777;'>No animal activity recorded</div>";
                 }}
 
+                // 3. Return the fully assembled tooltip
                 return `
                     <div class="shared-tooltip-content">
                         <div class="tooltip-header"><strong>Plot ${{plot.plot_id}}</strong></div>
                         <div class="tooltip-subheader">
                             Area: ${{plot.releve_area}} m²<br>
                             Tier: <span style="color:${{bgColor}};font-weight:bold;">${{plot.concern_tier.toUpperCase()}}</span><br>
-                            <strong>Overall Disturbance: ${{plot.overall_dist_score}}/10</strong>
+                            <strong>Disturbance: ${{plot.overall_dist_score}}/10</strong><br>
+                        
+                            <div style="margin-top: 4px; padding-top: 4px; border-top: 1px dashed #ddd; color: black; font-weight: bold;">
+                                Impact: ${{distTypeStr}}
+                            </div>
                         </div>
                         ${{lowerContentHTML}}
                     </div>
                 `;
             }}
 
-
             const map = L.map('map-view').setView([69.845, -155.985], 14);
             L.tileLayer('{tile_url}', {{ attribution: 'Tiles &copy; Esri' }}).addTo(map);
-
 
             const domTooltip = document.getElementById('global-tooltip');
 
@@ -379,12 +386,10 @@ def _(json, map_data, mo):
                 domTooltip.style.top  = top  + 'px';
             }}
 
-
             const gridContainer = document.getElementById('alaska-grid');
 
             plots.forEach(plot => {{
                 const bgColor = colorMap[plot.concern_tier] || '#aaaaaa';
-
 
                 const baseSize = Math.sqrt(plot.releve_area) * 2.5;
                 let width = baseSize, height = baseSize, borderRadius = '50%';
@@ -398,11 +403,9 @@ def _(json, map_data, mo):
                     .addTo(map)
                     .bindTooltip(getTooltipHTML(plot, bgColor), {{ direction: 'top', offset: [0, -(height/2)], opacity: 1 }});
 
-
                 const cell = document.createElement('div');
                 cell.className = 'puzzle-piece';
                 cell.style.backgroundColor = bgColor;
-
 
                 cell.style.gridRow = plot.grid_row;
                 cell.style.gridColumn = plot.grid_col;
@@ -418,23 +421,22 @@ def _(json, map_data, mo):
                 gridContainer.appendChild(cell);
             }});
 
-
             const mapPanel = document.getElementById('map-panel');
             const puzzlePanel = document.getElementById('puzzle-panel');
             const radios = document.querySelectorAll('input[name="viewToggle"]');
-            const shapeScaleLegend = document.getElementById('shape-scale-legend'); // NEW: Get the legend element
+            const shapeScaleLegend = document.getElementById('shape-scale-legend'); 
 
             radios.forEach(radio => {{
                 radio.addEventListener('change', (e) => {{
                     if (e.target.value === 'map') {{
                         puzzlePanel.style.display = 'none';
                         mapPanel.style.display = 'block';
-                        shapeScaleLegend.style.display = 'block'; // NEW: Show shape legend
+                        shapeScaleLegend.style.display = 'block'; 
                         setTimeout(() => map.invalidateSize(), 10); 
                     }} else {{
                         mapPanel.style.display = 'none';
                         puzzlePanel.style.display = 'flex'; 
-                        shapeScaleLegend.style.display = 'none'; // NEW: Hide shape legend
+                        shapeScaleLegend.style.display = 'none'; 
                     }}
                 }});
             }});
@@ -452,6 +454,11 @@ def _(json, map_data, mo):
         ></iframe>
     </div>
     """)
+    return
+
+
+@app.cell
+def _():
     return
 
 
